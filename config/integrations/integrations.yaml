@@ -1,0 +1,5 @@
+integrations:
+  virustotal:
+    enabled: true
+    api_key: "" # Todo: add key
+    base_url: "https://www.virustotal.com/api/v3"
