@@ -51,7 +51,7 @@ MIT License
 
 ## Author
 
-Your Name - [LinkedIn](https://www.linkedin.com/in/logan-lupeamanu/)
+Logan Lupeamanu - [LinkedIn](https://www.linkedin.com/in/logan-lupeamanu/)
 
 ---
 
