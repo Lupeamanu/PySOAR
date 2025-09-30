@@ -4,7 +4,7 @@ playbook:
   trigger: "manual"
   inputs:
     - ip_address
-
+  
   actions:
     - id: "start_log"
       type: "log"
@@ -18,13 +18,13 @@ playbook:
         method: "check_ip"
         parameters:
           ip: "{{inputs.ip_address}}"
-        output_variable: "vt_result"
+      output_variable: "vt_result"
     
     - id: "log_vt_results"
       type: "log"
       parameters:
         message: "VirusTotal results - Malicious: {{vt_result.malicious}}, Suspicious: {{vt_result.suspicious}}"
-      
+    
     - id: "calculate_risk"
       type: "python_code"
       parameters:
@@ -54,8 +54,8 @@ playbook:
             risk_score += 10
           
           result = risk_score
-      output_variable: "risk_score" 
-
+      output_variable: "risk_score"
+    
     - id: "log_risk"
       type: "log"
       parameters:
@@ -68,26 +68,26 @@ playbook:
         - id: "high_risk_alert"
           type: "log"
           parameters:
-            message: "HIGH RISK ALERT: IP {{inputs.ip_address}} is potentially malicious!"
-
+            message: "🚨 HIGH RISK ALERT: IP {{inputs.ip_address}} is potentially malicious!"
+        
         - id: "set_action"
           type: "set_variable"
           parameters:
             name: "recommended_action"
             value: "BLOCK IP and create high-priority incident"
-
+      
       if_false:
         - id: "low_risk_log"
           type: "log"
           parameters:
-            message: "Low risk: IP {{inputs.ip_address}} appears safe"
-
+            message: "✓ Low risk: IP {{inputs.ip_address}} appears safe"
+        
         - id: "set_action_low"
           type: "set_variable"
           parameters:
             name: "recommended_action"
             value: "Monitor for suspicious activity"
-
+    
     - id: "final_summary"
       type: "log"
       parameters:

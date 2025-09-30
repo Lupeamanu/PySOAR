@@ -86,16 +86,25 @@ class PlaybookEngine:
         """Execute Python code action"""
         code = action.parameters.get('code', '')
         
-        # Create a safe execution environment with context variables
+        # Create execution environment with all context variables available
         exec_globals = {'__builtins__': __builtins__}
-        exec_globals.update(self.context)
+        exec_locals = {}
+        
+        # Make all context variables available directly (not nested in a dict)
+        for key, value in self.context.items():
+            if key != 'inputs':  # Skip inputs, we'll handle it separately
+                exec_locals[key] = value
+        
+        # Make input variables available directly
+        if 'inputs' in self.context:
+            exec_locals['inputs'] = self.context['inputs']
         
         # Execute the code
-        exec(code, exec_globals)
+        exec(code, exec_globals, exec_locals)
         
         # If there's a return variable, capture it
-        if action.output_variable and 'result' in exec_globals:
-            self.context[action.output_variable] = exec_globals['result']
+        if action.output_variable and 'result' in exec_locals:
+            self.context[action.output_variable] = exec_locals['result']
             self._log(f"Stored result in variable: {action.output_variable}")
     
     def _action_condition(self, action: Action):
@@ -118,7 +127,7 @@ class PlaybookEngine:
         """Set a variable in the context"""
         var_name = action.parameters.get('name')
         var_value = action.parameters.get('value')
-        var_value = self._resolve_variables(var_value) # type: ignore
+        var_value = self._resolve_variables(var_value) # pyright: ignore[reportArgumentType]
         
         self.context[var_name] = var_value # type: ignore
         self._log(f"Set variable '{var_name}' = {var_value}")
