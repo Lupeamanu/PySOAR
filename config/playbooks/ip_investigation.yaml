@@ -1,0 +1,94 @@
+playbook:
+  name: "IP Address Investigation"
+  description: "Investigate suspicious IP using threat intelligence"
+  trigger: "manual"
+  inputs:
+    - ip_address
+
+  actions:
+    - id: "start_log"
+      type: "log"
+      parameters:
+        message: "Starting investigation for IP: {{inputs.ip_address}}"
+    
+    - id: "check_virustotal"
+      type: "api_call"
+      parameters:
+        integration: "virustotal"
+        method: "check_ip"
+        parameters:
+          ip: "{{inputs.ip_address}}"
+        output_variable: "vt_result"
+    
+    - id: "log_vt_results"
+      type: "log"
+      parameters:
+        message: "VirusTotal results - Malicious: {{vt_result.malicious}}, Suspicious: {{vt_result.suspicious}}"
+      
+    - id: "calculate_risk"
+      type: "python_code"
+      parameters:
+        code: |
+          risk_score = 0
+          
+          # Check if we have mock data or real data
+          if vt_result.get('mock_data'):
+            vt_data = vt_result.get('data', {})
+          else:
+            vt_data = vt_result
+          
+          # Calculate risk based on VirusTotal
+          malicious = vt_data.get('malicious', 0)
+          suspicious = vt_data.get('suspicious', 0)
+          reputation = vt_data.get('reputation', 0)
+          
+          if malicious > 5:
+            risk_score += 70
+          elif malicious > 0:
+            risk_score += 40
+          
+          if suspicious > 3:
+            risk_score += 20
+          
+          if reputation < 0:
+            risk_score += 10
+          
+          result = risk_score
+      output_variable: "risk_score" 
+
+    - id: "log_risk"
+      type: "log"
+      parameters:
+        message: "Calculated risk score: {{risk_score}}/100"
+    
+    - id: "risk_decision"
+      type: "condition"
+      condition: "risk_score >= 50"
+      if_true:
+        - id: "high_risk_alert"
+          type: "log"
+          parameters:
+            message: "HIGH RISK ALERT: IP {{inputs.ip_address}} is potentially malicious!"
+
+        - id: "set_action"
+          type: "set_variable"
+          parameters:
+            name: "recommended_action"
+            value: "BLOCK IP and create high-priority incident"
+
+      if_false:
+        - id: "low_risk_log"
+          type: "log"
+          parameters:
+            message: "Low risk: IP {{inputs.ip_address}} appears safe"
+
+        - id: "set_action_low"
+          type: "set_variable"
+          parameters:
+            name: "recommended_action"
+            value: "Monitor for suspicious activity"
+
+    - id: "final_summary"
+      type: "log"
+      parameters:
+        message: "Investigation complete. Recommended action: {{recommended_action}}"
