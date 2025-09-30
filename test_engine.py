@@ -63,10 +63,6 @@ def main():
     print("\n" + "=" * 70)
     print("Test Complete!")
     print("=" * 70)
-    print("\n💡 Next steps:")
-    print("   - Add your VirusTotal API key to config/integrations.yaml")
-    print("   - Create more playbooks for different scenarios")
-    print("   - Add more integrations (AbuseIPDB, Shodan, etc.)")
 
 
 if __name__ == "__main__":
