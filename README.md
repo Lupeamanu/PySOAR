@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 ```
 pysoar/
-├── config/         # Configuration and playbooks
+├── config/        # Configuration and playbooks
 ├── src/           # Source code
 ├── tests/         # Tests
 └── data/          # Database
