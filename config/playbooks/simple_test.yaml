@@ -1,0 +1,59 @@
+playbook:
+  name: "Simple IP Investigation"
+  description: "Basic playbook to test the engine"
+  trigger: "manual"
+  inputs:
+    - ip_address
+
+  actions:
+    - id: "welcome"
+      type: "log"
+      parameters:
+        message: "Starting the Investigation for IP: {{inputs.ip_address}}"
+
+    - id: "set_risk"
+      type: "set_variable"
+      parameters:
+        name: "risk_score"
+        value: 0
+    
+    - id: "calculate_risk"
+      type: "python_code"
+      parameters:
+        code: |
+          # Simple risk calculation
+          ip = inputs["ip_address"]
+          risk = 0
+
+          # Example logic
+          if ip.startswith("192.168"):
+            risk = 10 # Internal IP
+          else:
+            risk = 50 # External IP
+          
+          result = risk
+      output_variable: "calculated_risk"
+
+    - id: "log_risk"
+      type: "log"
+      parameters:
+        message: "Calculated risk score: {{calculated_risk}}"
+      
+    - id: "risk_decision"
+      type: "condition"
+      condition: "calculated_risk > 30"
+      if_true:
+        - id: "high_risk_log"
+          type: "log"
+          parameters:
+            message: "HIGH RISK: IP {{inputs.ip_address}} requires Investigation"
+      if_false:
+        - id: "low_risk_log"
+          type: "log"
+          parameters:
+            message: "LOW RISK: IP {{inputs.ip_address}} appears safe"
+
+    - id: "complete"
+      type: "log"
+      parameters:
+        message: "Investigation complete for {{inputs.ip_address}}"
