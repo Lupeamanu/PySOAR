@@ -100,7 +100,7 @@ class CaseManager:
             query += " AND severity = ?"
             params.append(severity)
 
-        query += " ORDER BY created_by DESC LIMIT ?"
+        query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
 
         cursor.execute(query, params)

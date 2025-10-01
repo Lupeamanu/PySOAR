@@ -82,6 +82,7 @@ Examples:
 
         # Update case
         update_case = case_subparsers.add_parser("update", help="Update case")
+        update_case.add_argument("case_id", help="Case ID")
         update_case.add_argument("--status", choices=["open", "investigating", "resolved", "closed"], help="Update status")
         update_case.add_argument("--severity", choices=["low", "medium", "high", "critical"], help="Update severity")
         update_case.add_argument("--comment", help="Add a comment")
