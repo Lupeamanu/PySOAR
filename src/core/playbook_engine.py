@@ -1,6 +1,4 @@
-"""
-Playbook execution engine for PySOAR
-"""
+""" Playbook execution engine for PySOAR """
 import re
 import yaml
 from typing import Dict, Any, List
@@ -14,22 +12,24 @@ from models.playbook import Playbook, Action
 
 
 class PlaybookEngine:
-    """Executes security playbooks"""
+    """ Executes security playbooks """
     
     def __init__(self, integration_manager=None):
         self.context = {}  # Stores variables during execution
         self.execution_log = []  # Tracks all actions taken
         self.integration_manager = integration_manager
+        
     
     def load_playbook(self, playbook_path: str) -> Playbook:
-        """Load a playbook from a YAML file"""
+        """ Load a playbook from a YAML file """
         with open(playbook_path, 'r') as f:
             data = yaml.safe_load(f)
         return Playbook.from_dict(data)
     
+    
     def execute(self, playbook: Playbook, inputs: Dict[str, Any] = None) -> Dict[str, Any]: # type: ignore
-        """Execute a playbook with given inputs"""
-        self.context = {'inputs': inputs or {}}
+        """ Execute a playbook with given inputs """
+        self.context = {"inputs": inputs or {}}
         self.execution_log = []
         
         start_time = datetime.now()
@@ -57,9 +57,10 @@ class PlaybookEngine:
             "execution_log": self.execution_log,
             "context": self.context
         }
+
     
     def _execute_action(self, action: Action):
-        """Execute a single action"""
+        """ Execute a single action """
         self._log(f"Executing action: {action.id} (type: {action.type})")
         
         # Handle different action types
@@ -75,40 +76,43 @@ class PlaybookEngine:
             self._action_api_call(action)
         else:
             raise ValueError(f"Unknown action type: {action.type}")
+
     
     def _action_log(self, action: Action):
-        """Log action - prints a message"""
-        message = action.parameters.get('message', '')
+        """ Log action - prints a message """
+        message = action.parameters.get("message", '')
         message = self._resolve_variables(message)
         self._log(f"LOG: {message}", level="INFO")
+
     
     def _action_python_code(self, action: Action):
-        """Execute Python code action"""
-        code = action.parameters.get('code', '')
+        """ Execute Python code action """
+        code = action.parameters.get("code", '')
         
         # Create execution environment with all context variables available
-        exec_globals = {'__builtins__': __builtins__}
+        exec_globals = {"__builtins__": __builtins__}
         exec_locals = {}
         
         # Make all context variables available directly (not nested in a dict)
         for key, value in self.context.items():
-            if key != 'inputs':  # Skip inputs, we'll handle it separately
+            if key != "inputs":  # Skip inputs, we'll handle it separately
                 exec_locals[key] = value
         
         # Make input variables available directly
-        if 'inputs' in self.context:
-            exec_locals['inputs'] = self.context['inputs']
+        if "inputs" in self.context:
+            exec_locals["inputs"] = self.context["inputs"]
         
         # Execute the code
         exec(code, exec_globals, exec_locals)
         
         # If there's a return variable, capture it
-        if action.output_variable and 'result' in exec_locals:
-            self.context[action.output_variable] = exec_locals['result']
+        if action.output_variable and "result" in exec_locals:
+            self.context[action.output_variable] = exec_locals["result"]
             self._log(f"Stored result in variable: {action.output_variable}")
+
     
     def _action_condition(self, action: Action):
-        """Execute conditional action"""
+        """ Execute conditional action """
         condition = self._resolve_variables(action.condition) # type: ignore
         
         # Evaluate condition
@@ -122,24 +126,26 @@ class PlaybookEngine:
         elif not result and action.if_false:
             for sub_action in action.if_false:
                 self._execute_action(sub_action)
+
     
     def _action_set_variable(self, action: Action):
-        """Set a variable in the context"""
-        var_name = action.parameters.get('name')
-        var_value = action.parameters.get('value')
+        """ Set a variable in the context """
+        var_name = action.parameters.get("name")
+        var_value = action.parameters.get("value")
         var_value = self._resolve_variables(var_value) # pyright: ignore[reportArgumentType]
         
         self.context[var_name] = var_value # type: ignore
         self._log(f"Set variable '{var_name}' = {var_value}")
+
     
     def _action_api_call(self, action: Action):
-        """Execute an API call action"""
+        """ Execute an API call action """
         if not self.integration_manager:
             raise ValueError("Integration manager not configured")
         
-        integration = action.parameters.get('integration')
-        method = action.parameters.get('method')
-        params = action.parameters.get('parameters', {})
+        integration = action.parameters.get("integration")
+        method = action.parameters.get("method")
+        params = action.parameters.get("parameters", {})
         
         # Resolve variables in parameters
         resolved_params = {}
@@ -157,9 +163,10 @@ class PlaybookEngine:
             self._log(f"Stored API result in variable: {action.output_variable}")
         
         return result
+
     
     def _resolve_variables(self, text: str) -> str:
-        """Replace {{variable}} placeholders with actual values"""
+        """ Replace {{variable}} placeholders with actual values """
         if not isinstance(text, str):
             return text
         
@@ -172,9 +179,10 @@ class PlaybookEngine:
             return str(value) if value is not None else match.group(0)
         
         return re.sub(pattern, replacer, text)
+
     
     def _get_nested_value(self, path: str) -> Any:
-        """Get a value from context using dot notation (e.g., 'inputs.ip_address')"""
+        """ Get a value from context using dot notation (e.g., 'inputs.ip_address') """
         parts = path.split('.')
         value = self.context
         
@@ -185,9 +193,10 @@ class PlaybookEngine:
                 return None
         
         return value
+
     
     def _log(self, message: str, level: str = "INFO"):
-        """Add entry to execution log"""
+        """ Add entry to execution log """
         log_entry = {
             "timestamp": datetime.now().isoformat(),
             "level": level,
