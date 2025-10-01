@@ -11,6 +11,8 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from core.playbook_engine import PlaybookEngine
 from core.integration_manager import IntegrationManager
+from core.case_manager import CaseManager
+from models.case import Status, Severity
 
 
 class PySOARCLI:
@@ -57,6 +59,36 @@ Examples:
         int_parser = subparsers.add_parser("integrations", help="List loaded integrations")
         int_parser.add_argument("-c", "--config", default="config/integrations.yaml", help="Integration config file")
 
+        # Case commands
+        case_parser = subparsers.add_parser("case", help="Case management commands")
+        case_subparsers = case_parser.add_subparsers(dest="case_command")
+
+        # Create case
+        create_case = case_subparsers.add_parser("create", help="Create a new case")
+        create_case.add_argument("-t", "--title", required=True, help="Case title")
+        create_case.add_argument("-d", "--description", default='', help="Case description")
+        create_case.add_argument("-s", "--severity", choices=["low", "medium", "high", "critical"], default="medium", help="Case severity")
+        create_case.add_argument("--tags", help="Comma-separated tags")
+
+        # List cases
+        list_cases = case_subparsers.add_parser("list", help="List cases")
+        list_cases.add_argument("--status", choices=["open", "investigating", "resolved", "closed"], help="Filter by status")
+        list_cases.add_argument("--severity", choices=["low", "medium", "high", "critical"], help="Filter by severity")
+        list_cases.add_argument("-n", "--limit", type=int, default=20, help="Number of cases to show")
+
+        # View case
+        view_case = case_subparsers.add_parser("view", help="View case details")
+        view_case.add_argument("case_id", help="Case ID")
+
+        # Update case
+        update_case = case_subparsers.add_parser("update", help="Update case")
+        update_case.add_argument("--status", choices=["open", "investigating", "resolved", "closed"], help="Update status")
+        update_case.add_argument("--severity", choices=["low", "medium", "high", "critical"], help="Update severity")
+        update_case.add_argument("--comment", help="Add a comment")
+
+        # Case stats
+        stats_case = case_subparsers.add_parser("stats", help="Show case statistics")
+
         args = parser.parse_args()
 
         if not args.command:
@@ -70,6 +102,8 @@ Examples:
             self.handle_list(args)
         elif args.command == "integrations":
             self.handle_integrations(args)
+        elif args.command == "case":
+            self.handle_case(args)
 
 
     def handle_run(self, args):
@@ -194,42 +228,232 @@ Examples:
             print(f"Error loading integrations: {e}")
 
 
-    def _display_results(self, result, verbose=False):
-        """ Display execution results """
-        status = result["status"]
+    def handle_case(self, args):
+        """Handle case management commands"""
+        if not args.case_command:
+            print("❌ Please specify a case command. Use --help for options.")
+            return
+        
+        case_manager = CaseManager()
+        
+        if args.case_command == 'create':
+            self._case_create(case_manager, args)
+        elif args.case_command == 'list':
+            self._case_list(case_manager, args)
+        elif args.case_command == 'view':
+            self._case_view(case_manager, args)
+        elif args.case_command == 'update':
+            self._case_update(case_manager, args)
+        elif args.case_command == 'stats':
+            self._case_stats(case_manager)
 
-        if status == "SUCCESS":
-            print("Execution Status: SUCCESS")
-        else:
-            print("Execution Status: FAILED")
-            if result.get("error"):
-                print(f"  Error: {result['error']}")
+    
+    def _case_create(self, case_manager, args):
+        """Create a new case"""
+        self._print_header("Create New Case")
+        
+        tags = []
+        if args.tags:
+            tags = [t.strip() for t in args.tags.split(',')]
+        
+        case = case_manager.create_case(
+            title=args.title,
+            description=args.description,
+            severity=args.severity,
+            tags=tags
+        )
+        
+        print(f"✅ Case created successfully!")
+        print(f"   ID: {case.id}")
+        print(f"   Title: {case.title}")
+        print(f"   Severity: {case.severity.upper()}")
+        print(f"   Status: {case.status}")
+        if tags:
+            print(f"   Tags: {', '.join(tags)}")
 
-        print(f"Duration: {result['duration_seconds']:.2f}s")
-        print()
-
-        # Display context variables
-        context = result.get("context", {})
-        if context:
-            print("Results:")
-            print("-" * 70)
-            for key, value in context.items():
-                if key == "inputs":
-                    continue
-                if isinstance(value, dict) and len(str(value)) > 100:
-                    print(f"  {key}: [complex object]")
-                else:
-                    print(f"  {key}: {value}")
+    
+    def _case_list(self, case_manager, args):
+        """List cases"""
+        self._print_header("Cases")
+        
+        cases = case_manager.list_cases(
+            status=args.status,
+            severity=args.severity,
+            limit=args.limit
+        )
+        
+        if not cases:
+            print("No cases found.")
+            return
+        
+        print(f"Found {len(cases)} case(s):\n")
+        
+        for case in cases:
+            # Status and severity indicators
+            status_icon = {
+                'open': '🔴',
+                'investigating': '🟡',
+                'resolved': '🟢',
+                'closed': '⚪'
+            }.get(case.status, '⚫')
+            
+            severity_icon = {
+                'critical': '🔥',
+                'high': '⚠️ ',
+                'medium': '📋',
+                'low': '📝'
+            }.get(case.severity, '📋')
+            
+            print(f"{status_icon} {severity_icon} [{case.id[:8]}] {case.title}")
+            print(f"   Status: {case.status.upper()} | Severity: {case.severity.upper()}")
+            print(f"   Created: {case.created_at.strftime('%Y-%m-%d %H:%M')}")
+            if case.artifacts:
+                print(f"   Artifacts: {len(case.artifacts)}")
+            if case.playbooks_executed:
+                print(f"   Playbooks: {len(case.playbooks_executed)}")
             print()
 
-        # Show execution log if verbose
-        if verbose and result.get("execution_log"):
-            print("Execution Log:")
+    
+    def _case_view(self, case_manager, args):
+        """View case details"""
+        case = case_manager.get_case(args.case_id)
+        
+        if not case:
+            print(f"❌ Case not found: {args.case_id}")
+            return
+        
+        self._print_header(f"Case Details: {case.title}")
+        
+        print(f"ID: {case.id}")
+        print(f"Title: {case.title}")
+        print(f"Description: {case.description or 'N/A'}")
+        print(f"Severity: {case.severity.upper()}")
+        print(f"Status: {case.status.upper()}")
+        print(f"Created: {case.created_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"Updated: {case.updated_at.strftime('%Y-%m-%d %H:%M:%S')}")
+        if case.assigned_to:
+            print(f"Assigned To: {case.assigned_to}")
+        if case.tags:
+            print(f"Tags: {', '.join(case.tags)}")
+        print()
+        
+        # Artifacts
+        if case.artifacts:
+            print("📎 Artifacts:")
             print("-" * 70)
-            for entry in result["execution_log"]:
-                timestamp = entry["timestamp"].split('T')[1].split('.')[0]
-                level = entry["level"]
-                message = entry["message"]
+            for artifact in case.artifacts:
+                print(f"  [{artifact.artifact_type}] {artifact.value}")
+                if artifact.description:
+                    print(f"    Description: {artifact.description}")
+            print()
+        
+        # Playbooks
+        if case.playbooks_executed:
+            print("🔄 Playbooks Executed:")
+            print("-" * 70)
+            for pb in case.playbooks_executed:
+                print(f"  - {pb}")
+            print()
+        
+        # Timeline
+        print("📅 Timeline:")
+        print("-" * 70)
+        for event in case.events[-10:]:  # Show last 10 events
+            timestamp = event.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+            print(f"  [{timestamp}] {event.description}")
+        
+        if len(case.events) > 10:
+            print(f"\n  ... and {len(case.events) - 10} more events")
+
+    
+    def _case_update(self, case_manager, args):
+        """Update a case"""
+        case = case_manager.get_case(args.case_id)
+        
+        if not case:
+            print(f"❌ Case not found: {args.case_id}")
+            return
+        
+        updated = False
+        
+        if args.status:
+            case.update_status(args.status)
+            print(f"✅ Updated status to: {args.status.upper()}")
+            updated = True
+        
+        if args.severity:
+            case.update_severity(args.severity)
+            print(f"✅ Updated severity to: {args.severity.upper()}")
+            updated = True
+        
+        if args.comment:
+            case.add_comment(args.comment)
+            print(f"✅ Added comment")
+            updated = True
+        
+        if updated:
+            case_manager.update_case(case)
+            print(f"\n📋 Case {case.id[:8]} updated successfully")
+        else:
+            print("⚠️  No updates specified")
+
+    
+    def _case_stats(self, case_manager):
+        """Show case statistics"""
+        self._print_header("Case Statistics")
+        
+        stats = case_manager.get_statistics()
+        
+        print(f"Total Cases: {stats['total']}")
+        print(f"Open Cases: {stats['open']}")
+        print()
+        
+        print("By Status:")
+        for status, count in stats['by_status'].items():
+            print(f"  {status.upper()}: {count}")
+        print()
+        
+        print("By Severity:")
+        for severity, count in stats['by_severity'].items():
+            print(f"  {severity.upper()}: {count}")
+
+    
+    def _display_results(self, result, verbose=False):
+        """Display execution results"""
+        status = result['status']
+        
+        if status == 'SUCCESS':
+            print("✅ Execution Status: SUCCESS")
+        else:
+            print("❌ Execution Status: FAILED")
+            if result.get('error'):
+                print(f"   Error: {result['error']}")
+        
+        print(f"⏱️  Duration: {result['duration_seconds']:.2f}s")
+        print()
+        
+        # Display context variables
+        context = result.get('context', {})
+        if context:
+            print("📊 Results:")
+            print("-" * 70)
+            for key, value in context.items():
+                if key == 'inputs':
+                    continue
+                if isinstance(value, dict) and len(str(value)) > 100:
+                    print(f"   {key}: [complex object]")
+                else:
+                    print(f"   {key}: {value}")
+            print()
+        
+        # Show execution log if verbose
+        if verbose and result.get('execution_log'):
+            print("📝 Execution Log:")
+            print("-" * 70)
+            for entry in result['execution_log']:
+                timestamp = entry['timestamp'].split('T')[1].split('.')[0]
+                level = entry['level']
+                message = entry['message']
                 print(f"[{timestamp}] [{level}] {message}")
             print()
 
